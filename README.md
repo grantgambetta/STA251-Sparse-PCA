@@ -1,1 +1,1 @@
-# STA251-Sparse-PCA
+# STA 251 Final Project - Sparse PCA
