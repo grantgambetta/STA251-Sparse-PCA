@@ -37,11 +37,11 @@ ggplot(data = explained_var_df, aes(x = as.factor(PC), y = cumulative_exp_var, g
   ylab('Cumulative Explained Variance') + 
   ggtitle('Scree Plot - PCA on Wine Data')
 
-############################## SPARSE PCA ##############################
+############################## SPARSE PCA USING ELASTICNET PACKAGE ##############################
 X_scaled <- X %>% mutate_all(~(scale(.) %>% as.vector))
 
 K = 6
-sparse_pca <- elasticnet::spca(X, K = K, lambda = 1e-6, para = c(0.1, 0.2, 0.3, 0.3, 0.3, 0.5), type = 'predictor')
+sparse_pca <- elasticnet::spca(X_scaled, K = K, lambda = 1e-6, para = c(0.1, 0.2, 0.3, 0.3, 0.3, 0.5), type = 'predictor')
 print(sparse_pca$loadings)
 print(sparse_pca$pev)
 
@@ -64,4 +64,11 @@ ggplot(data = explained_df_spca, aes(x = as.factor(PC), y = cumulative_exp_var, 
   ylab('Cumulative Explained Variance') + 
   ggtitle('Scree Plot - SPCA on Wine Data')
 
+############################## SPARSE PCA USING SPARSEPCA PACKAGE ##############################
 
+k = 7
+sparse_pca2 <- sparsepca::spca(X, k = k, alpha = 0.009, beta = 1e-4, center = TRUE, scale = TRUE)
+summary(sparse_pca2)
+print(sparse_pca2$loadings)
+
+alphas <- seq(0.001, 0.01, by = 0.001)
