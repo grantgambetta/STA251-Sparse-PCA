@@ -65,10 +65,11 @@ ggplot(data = explained_df_spca, aes(x = as.factor(PC), y = cumulative_exp_var, 
   ggtitle('Scree Plot - SPCA on Wine Data')
 
 ############################## SPARSE PCA USING SPARSEPCA PACKAGE ##############################
-
-k = 7
+k = 6
 sparse_pca2 <- sparsepca::spca(X, k = k, alpha = 0.009, beta = 1e-4, center = TRUE, scale = TRUE)
 summary(sparse_pca2)
 print(sparse_pca2$loadings)
 
 alphas <- seq(0.001, 0.01, by = 0.001)
+
+
