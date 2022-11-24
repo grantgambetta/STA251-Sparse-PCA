@@ -66,10 +66,17 @@ ggplot(data = explained_df_spca, aes(x = as.factor(PC), y = cumulative_exp_var, 
 
 ############################## SPARSE PCA USING SPARSEPCA PACKAGE ##############################
 k = 6
-sparse_pca2 <- sparsepca::spca(X, k = k, alpha = 0.009, beta = 1e-4, center = TRUE, scale = TRUE)
+sparse_pca2 <- sparsepca::spca(X, k = k, alpha = 0.001, beta = 1e-4, center = TRUE, scale = TRUE)
 summary(sparse_pca2)
 print(sparse_pca2$loadings)
 
-alphas <- seq(0.001, 0.01, by = 0.001)
+alphas <- seq(0.001, 0.05, by = 0.001)
+var_result <- c()
+for (alpha in alphas) {
+  res <- sparsepca::spca(X, k = 6, alpha = alpha, beta = 1e-4, center = TRUE, scale = TRUE)
+  var <- summary(res)[4, 6]
+  var_result <- append(var_result, var)
+}
 
-
+result <- as.data.frame(cbind(alphas, var_result))
+print(result)
