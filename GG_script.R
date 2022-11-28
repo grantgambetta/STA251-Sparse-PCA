@@ -5,19 +5,25 @@ library(dplyr)
 library(ggplot2)
 library(readxl)
 library(knitr)
+library(stargazer)
 options(scipen = 999)
 
+# https://archive.ics.uci.edu/ml/datasets/wine+quality
 winequality <- read.csv("http://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv", sep = ";")
 head(winequality)
 
 X <- winequality %>% select(-quality)
-#X_scaled <- X %>% mutate_all(~(scale(.) %>% as.vector))
+print(dim(X))
+print(colnames(X))
+print(summary(X))
+stargazer(X)
 
 #######################################  WINE DATASET ####################################### 
 ############################## PCA ##############################
 pca <- prcomp(X, center = TRUE, scale. = TRUE)
 summary(pca)
-print(pca$rotation[, 1:5]) # loadings matrix
+stargazer(pca$rotation[, 1:6])
+print(pca$rotation[, 1:6]) # loadings matrix
 
 explained_var <- pca$sdev^2 / sum(pca$sdev^2)
 explained_var_df <- data.frame(PC = paste0("PC", 1:11),
@@ -29,7 +35,7 @@ ggplot(data = explained_var_df, aes(x = PC, y = explained_var, group = 1)) +
   geom_point(size = 3) +
   geom_line() +
   xlab('Principal Component') + 
-  ylab('Explained Variance') + 
+  ylab('% of Explained Variance') + 
   ggtitle('Scree Plot - PCA on Wine Data')
 
 ggplot(data = explained_var_df, aes(x = as.factor(PC), y = cumulative_exp_var, group = 1)) +
@@ -59,7 +65,7 @@ ggplot(data = explained_df_spca, aes(x = PC, y = explained_variance, group = 1))
   ylab('Explained Variance') + 
   ggtitle('Scree Plot - SPCA on Wine Data')
 
-ggplot(data = explained_df_spca, aes(x = as.factor(PC), y = cumulative_exp_var, group = 1)) +
+ggplot(data = explained_df_spca, aes(x = PC, y = cumulative_exp_var, group = 1)) +
   geom_point(size = 3) +
   geom_line() +
   xlab('Principal Component') + 
@@ -70,7 +76,11 @@ ggplot(data = explained_df_spca, aes(x = as.factor(PC), y = cumulative_exp_var, 
 k = 6
 sparse_pca2 <- sparsepca::spca(X, k = k, alpha = 0.001, beta = 1e-4, center = TRUE, scale = TRUE)
 summary(sparse_pca2)
-print(sparse_pca2$loadings)
+sparse_loadings <- sparse_pca2$loadings
+rownames(sparse_loadings) <- colnames(X)
+colnames(sparse_loadings) <- c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6')
+print(sparse_loadings)
+stargazer(sparse_loadings)
 
 alphas <- seq(0.001, 0.05, by = 0.001)
 var_result <- c()
@@ -80,8 +90,26 @@ for (alpha in alphas) {
   var_result <- append(var_result, var)
 }
 
-result <- as.data.frame(cbind(alphas, var_result))
-print(result)
+result_spca_wine <- as.data.frame(cbind(alphas, var_result))
+colnames(result_spca_wine) <- c('alpha', 'cev')
+print(result_spca_wine)
+
+ggplot(data = result_spca_wine, aes(x = alphas, y = cev)) +
+  geom_point(size = 1.3) +
+  geom_line() +
+  xlab('Alpha') + 
+  ylab('Cumulative Explained Variance') + 
+  ggtitle('Cumulative Explained Variance vs Alpha - SPCA on the Wine Data')
+
+k = 6
+sparse_pca2_best <- sparsepca::spca(X, k = k, alpha = 0.004, beta = 1e-4, center = TRUE, scale = TRUE)
+summary(sparse_pca2_best)
+
+sparse_loadings_best <- sparse_pca2_best$loadings
+rownames(sparse_loadings_best) <- colnames(X)
+colnames(sparse_loadings_best) <- c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6')
+print(sparse_loadings_best)
+stargazer(sparse_loadings_best)
 
 #######################################  LSVT VOICE DATASET ####################################### 
 
