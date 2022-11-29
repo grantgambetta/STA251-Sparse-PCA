@@ -6,6 +6,7 @@ library(ggplot2)
 library(readxl)
 library(knitr)
 library(stargazer)
+library(gridExtra)
 options(scipen = 999)
 
 # https://archive.ics.uci.edu/ml/datasets/wine+quality
@@ -117,11 +118,12 @@ stargazer(sparse_loadings_best)
 
 voice_data <- readxl::read_excel('LSVT_voice_rehabilitation.xlsx')
 print(head(voice_data))
+print(dim(voice_data))
 
 pca <- prcomp(voice_data, center = TRUE, scale. = TRUE)
 summary(pca)
 
-n_components <- 20
+n_components <- 15
 explained_var <- pca$sdev^2 / sum(pca$sdev^2)
 explained_var_df <- data.frame(PC = paste0("PC", 1:n_components),
                                explained_variance = explained_var[1:n_components])
@@ -134,10 +136,11 @@ ggplot(data = explained_var_df, aes(x = seq(1, n_components, by=1), y = cumulati
   ylab('Cumulative Explained Variance') + 
   ggtitle('Scree Plot - PCA on LSVT Voice Data')
 
-alphas <- c(0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.0008, 0.001, 0.004, 0.008, 0.01)
+alphas <- c(0.00005, 0.0001, 0.0002, 0.0003, 0.0005, 0.0008, 0.002, 0.004, 0.006, 0.008, 0.01)
 var_result <- c()
 p_sparse_df <- data.frame(matrix(ncol = 15, nrow = 0))
-colnames(p_sparse_df) <- c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 'PC8', 'PC9', 'PC10', 'PC11', 'PC12', 'PC13', 'PC14', 'PC15')
+colnames(p_sparse_df) <- c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6', 'PC7', 
+                           'PC8', 'PC9', 'PC10', 'PC11', 'PC12', 'PC13', 'PC14', 'PC15')
 for (alpha in alphas) {
   res <- sparsepca::spca(voice_data, k = 15, alpha = alpha, beta = 1e-4, center = TRUE, scale = TRUE)
   
@@ -151,17 +154,45 @@ for (alpha in alphas) {
 
 result_df <- as.data.frame(cbind(alphas, var_result, p_sparse_df))
 colnames(result_df)[1:2] <- c('alpha', 'cev')
+result_df$avg_sparsity <- apply(result_df[, 3:length(colnames(result_df))], 1, mean)
 print(result_df)
-kable(result_df, 'latex')
 
-ggplot(data = result_df, aes(x = alphas, y = var_result)) +
+p1 <- ggplot(data = result_df, aes(x = alphas, y = var_result)) +
   geom_line() +
+  geom_point() +
+  geom_text(
+    label=paste('a=', result_df$alpha), 
+    nudge_x = 0.0007, nudge_y = 0.002, 
+    check_overlap = T
+  ) +
+  theme(axis.text = element_text(size = 13), 
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 17)) +
   xlab('Alpha') + 
+  scale_x_continuous(breaks=seq(min(result_df$alpha), max(result_df$alpha), 0.003)) +
   ylab('Cumulative Explained Variance') + 
-  ggtitle('Cumulative Explained Variance vs Alpha - SPCA on LSVT Voice Data for first 15 PCs')
+  ggtitle('Cumulative Explained Variance vs Alpha - SPCA on LSVT Data with 15 PCs')
+
+p2 <- ggplot(data = result_df, aes(x = alphas, y = avg_sparsity)) +
+  geom_line() +
+  geom_point() +
+  geom_text(
+    label=paste('a=', result_df$alpha), 
+    nudge_x = 0.0006, nudge_y = -1, 
+    check_overlap = T
+  ) +
+  theme(axis.text = element_text(size = 13), 
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 17)) +
+  xlab('Alpha') + 
+  scale_x_continuous(breaks=seq(min(result_df$alpha), max(result_df$alpha), 0.003)) +
+  ylab('Sparsity %') + 
+  ggtitle('Sparsity % vs Alpha - SPCA on LSVT Data with 15 PCs')
+
+grid.arrange(p1, p2, nrow=2)
 
 # best sparse pca after choosing alpha
-best_spca <- sparsepca::spca(voice_data, k = 15, alpha = 0.00005, beta = 1e-4, center = TRUE, scale = TRUE)
+best_spca <- sparsepca::spca(voice_data, k = 15, alpha = 0.0002, beta = 1e-4, center = TRUE, scale = TRUE)
 summary(best_spca)
 loadings <- as.data.frame(best_spca$loadings)
 print(loadings)
