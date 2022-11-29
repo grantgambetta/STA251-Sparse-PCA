@@ -32,13 +32,6 @@ explained_var_df <- data.frame(PC = paste0("PC", 1:11),
 explained_var_df$PC <- factor(explained_var_df$PC, levels = explained_var_df$PC)
 explained_var_df$cumulative_exp_var <- cumsum(explained_var)
 
-ggplot(data = explained_var_df, aes(x = PC, y = explained_var, group = 1)) +
-  geom_point(size = 3) +
-  geom_line() +
-  xlab('Principal Component') + 
-  ylab('% of Explained Variance') + 
-  ggtitle('Scree Plot - PCA on Wine Data')
-
 ggplot(data = explained_var_df, aes(x = as.factor(PC), y = cumulative_exp_var, group = 1)) +
   geom_point(size = 3) +
   geom_line() +
@@ -83,27 +76,51 @@ colnames(sparse_loadings) <- c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6')
 print(sparse_loadings)
 stargazer(sparse_loadings)
 
-alphas <- seq(0.001, 0.05, by = 0.001)
+alphas <- seq(0.001, 0.05, by = 0.003)
 var_result <- c()
+p_sparse_df <- data.frame(matrix(ncol = 6, nrow = 0))
+colnames(p_sparse_df) <- c('PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'PC6') 
 for (alpha in alphas) {
   res <- sparsepca::spca(X, k = 6, alpha = alpha, beta = 1e-4, center = TRUE, scale = TRUE)
   var <- summary(res)[4, 6]
   var_result <- append(var_result, var)
+  
+  loadings <- as.data.frame(res$loadings)
+  percent_sparse <- as.numeric(colSums(loadings == 0)/nrow(loadings))
+  p_sparse_df <- structure(rbind(p_sparse_df, percent_sparse), .Names = names(p_sparse_df))
 }
 
-result_spca_wine <- as.data.frame(cbind(alphas, var_result))
-colnames(result_spca_wine) <- c('alpha', 'cev')
+result_spca_wine <- as.data.frame(cbind(alphas, var_result, p_sparse_df))
+colnames(result_spca_wine)[1:2] <- c('alpha', 'cev')
+result_spca_wine$avg_sparsity <- apply(result_spca_wine[, 3:length(colnames(result_spca_wine))], 1, mean)
 print(result_spca_wine)
 
-ggplot(data = result_spca_wine, aes(x = alphas, y = cev)) +
-  geom_point(size = 1.3) +
+plot1 <- ggplot(data = result_spca_wine, aes(x = alpha, y = cev)) +
   geom_line() +
+  geom_point() +
+  theme(axis.text = element_text(size = 13), 
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 17)) +
   xlab('Alpha') + 
+  scale_x_continuous(breaks=seq(min(result_spca_wine$alpha), max(result_spca_wine$alpha), 0.01)) +
   ylab('Cumulative Explained Variance') + 
-  ggtitle('Cumulative Explained Variance vs Alpha - SPCA on the Wine Data')
+  ggtitle('CEV vs Alpha - SPCA on Wine Data with 6 PCs')
+
+plot2 <- ggplot(data = result_spca_wine, aes(x = alpha, y = avg_sparsity)) +
+  geom_line() +
+  geom_point() +
+  theme(axis.text = element_text(size = 13), 
+        axis.title = element_text(size = 15),
+        plot.title = element_text(size = 15)) +
+  xlab('Alpha') + 
+  scale_x_continuous(breaks=seq(min(result_spca_wine$alpha), max(result_spca_wine$alpha), 0.01)) +
+  ylab('Sparsity %') + 
+  ggtitle('Sparsity % vs Alpha - SPCA on Wine Data with 6 PCs')
+
+grid.arrange(plot1, plot2, nrow=1)
 
 k = 6
-sparse_pca2_best <- sparsepca::spca(X, k = k, alpha = 0.004, beta = 1e-4, center = TRUE, scale = TRUE)
+sparse_pca2_best <- sparsepca::spca(X, k = k, alpha = 0.007, beta = 1e-4, center = TRUE, scale = TRUE)
 summary(sparse_pca2_best)
 
 sparse_loadings_best <- sparse_pca2_best$loadings
@@ -145,7 +162,7 @@ for (alpha in alphas) {
   res <- sparsepca::spca(voice_data, k = 15, alpha = alpha, beta = 1e-4, center = TRUE, scale = TRUE)
   
   loadings <- as.data.frame(res$loadings)
-  percent_sparse <- as.numeric(colSums(loadings == 0)/nrow(loadings) * 100)
+  percent_sparse <- as.numeric(colSums(loadings == 0)/nrow(loadings))
   p_sparse_df <- structure(rbind(p_sparse_df, percent_sparse), .Names = names(p_sparse_df))
   
   var <- summary(res)[4, 15]
@@ -156,13 +173,14 @@ result_df <- as.data.frame(cbind(alphas, var_result, p_sparse_df))
 colnames(result_df)[1:2] <- c('alpha', 'cev')
 result_df$avg_sparsity <- apply(result_df[, 3:length(colnames(result_df))], 1, mean)
 print(result_df)
+stargazer(as.matrix(result_df %>% select('alpha', 'cev', 'avg_sparsity')))
 
 p1 <- ggplot(data = result_df, aes(x = alphas, y = var_result)) +
   geom_line() +
   geom_point() +
   geom_text(
     label=paste('a=', result_df$alpha), 
-    nudge_x = 0.0007, nudge_y = 0.002, 
+    nudge_x = 0.0008, nudge_y = 0.002, 
     check_overlap = T
   ) +
   theme(axis.text = element_text(size = 13), 
@@ -171,25 +189,25 @@ p1 <- ggplot(data = result_df, aes(x = alphas, y = var_result)) +
   xlab('Alpha') + 
   scale_x_continuous(breaks=seq(min(result_df$alpha), max(result_df$alpha), 0.003)) +
   ylab('Cumulative Explained Variance') + 
-  ggtitle('Cumulative Explained Variance vs Alpha - SPCA on LSVT Data with 15 PCs')
+  ggtitle('CEV vs Alpha - SPCA on LSVT Data with 15 PCs')
 
 p2 <- ggplot(data = result_df, aes(x = alphas, y = avg_sparsity)) +
   geom_line() +
   geom_point() +
   geom_text(
     label=paste('a=', result_df$alpha), 
-    nudge_x = 0.0006, nudge_y = -1, 
+    nudge_x = 0.0008, nudge_y = -0.004, 
     check_overlap = T
   ) +
   theme(axis.text = element_text(size = 13), 
         axis.title = element_text(size = 15),
-        plot.title = element_text(size = 17)) +
+        plot.title = element_text(size = 15)) +
   xlab('Alpha') + 
   scale_x_continuous(breaks=seq(min(result_df$alpha), max(result_df$alpha), 0.003)) +
   ylab('Sparsity %') + 
   ggtitle('Sparsity % vs Alpha - SPCA on LSVT Data with 15 PCs')
 
-grid.arrange(p1, p2, nrow=2)
+grid.arrange(p1, p2, nrow=1)
 
 # best sparse pca after choosing alpha
 best_spca <- sparsepca::spca(voice_data, k = 15, alpha = 0.0002, beta = 1e-4, center = TRUE, scale = TRUE)
