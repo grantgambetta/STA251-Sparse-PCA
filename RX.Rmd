@@ -6,11 +6,17 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+library(RCurl)
+library(dplyr)
+library(sparsepca)
+library(stargazer)
+library(ggplot2)
+library(psych)
+library(ggpubr)
 ```
 
-```{r}
-library(RCurl)
+```{r load data}
 UCI_data_URL <- getURL('https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data')
 names <- c('id_number', 'diagnosis', 'radius_mean', 'texture_mean', 'perimeter_mean', 'area_mean', 
            'smoothness_mean', 'compactness_mean', 'concavity_mean','concave_points_mean', 
@@ -21,12 +27,100 @@ names <- c('id_number', 'diagnosis', 'radius_mean', 'texture_mean', 'perimeter_m
            'concavity_worst', 'concave_points_worst', 'symmetry_worst', 'fractal_dimension_worst')
 cancer <- read.table(textConnection(UCI_data_URL), sep = ',', col.names = names)
 head(cancer)
+stargazer(cancer)
+
+cancer_array = cancer %>% select(!c(id_number, diagnosis))
+# normalize data
+df = cancer_array %>% mutate_all(~(scale(.) %>% as.vector))
 ```
 
 
 
+```{r pca}
+pca.result <- prcomp(df)
+biplot(pca.result)
+summary(pca.result)  # maybe pick 7? cum var = 91.01%
+
+var_explained = pca.result$sdev^2 / sum(pca.result$sdev^2)
+
+#create scree plot
+qplot(c(1:30), var_explained) + 
+  geom_line() + 
+  xlab("Principal Component") + 
+  ylab("Variance Explained") +
+  ggtitle("Scree Plot") +
+  ylim(0, 1)
+
+pc1_7 = as.data.frame(pca.result$rotation) %>% select(PC1:PC7)
+stargazer(pc1_7, summary = F)
+
+library(ggbiplot)
+ggbiplot(pca.result,  groups=cancer$diagnosis)
+```
+
 ```{r}
-library(dplyr)
-cancer_array = cancer %>% select(!c(id_number, diagnosis))
+sparse.pca.result <- sparsepca::spca(df, k = 7, alpha=0.001, verbose = F)
+```
+
+
+
+
+```{r}
+sparse.pca.result <- sparsepca::spca(df, k = 7)
+
+alphas = seq(from = 1e-4, to=0.05, by=0.001)
+
+print(sparse.pca.result$loadings)
+sparse.pca.result$eigenvalues
+sum(c(sparse.pca.result$sdev))
+# 83.90503%
+
+cumvars = c()
+sparsity = c()
+nonzeros = c()
+
+for (alpha in alphas) {
+  curr = sparsepca::spca(df, k = 7, alpha = alpha, verbose = F)
+  loadin = curr$loadings
+  nonzero = 0
+  for (item in loadin) {
+    if (item == 0){
+      nonzero = nonzero + 1
+    }
+  }
+  cumvars = append(cumvars, as.data.frame(summary(curr))$PC7[4])
+  nonzeros = append(nonzeros, nonzero/210)
+}
+
+tuning = as.data.frame(cbind(alphas, cumvars, nonzeros))
+
+g1 = ggplot(tuning, aes(x=alphas, y=cumvars)) + geom_point() + geom_line() + 
+  ylab("Cumulative Explained Variance") +
+  scale_y_continuous(limits = c(0,1)) +
+  ggtitle("Cumulative explained variance of SPCA at different sparsity (breast cancer data)")
+
+g2 = ggplot(tuning, aes(x=alphas, y=nonzeros)) + geom_point() + geom_line() + 
+  ylab("Sparsity (% of zero entries)") +
+  scale_y_continuous(limits = c(0,1)) +
+  ggtitle("Sparsity of loadings of 7 PCs at different alpha (breast cancer data)")
+
+ggarrange(g1, g2)
+
+tuning
+```
+
+```{r}
+finalsparse = sparsepca::spca(df, k = 7, alpha=0.01, verbose = F)
+finalloading = as.data.frame(finalsparse$loadings)
+names(finalloading) = names(pc1_7)
+stargazer(finalloading, summary = F)
+```
+
+
+```{r}
+library(elasticnet)
+net <- elasticnet::spca(df, K=7, sparse = "penalty", para = rep(1, 7))
+net$loadings
+sum(net$pev)
 ```
 
